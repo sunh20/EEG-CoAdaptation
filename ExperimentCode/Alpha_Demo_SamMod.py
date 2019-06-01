@@ -590,60 +590,63 @@ def saveData(subjID, taskParameters, taskData):
     taskData.to_json('SaveData/alpha_BCI_' + subjID + '_R' + str(fileNum) + '.json')
 
 
-def get_baseline_alpha(streamer, EEGdevice=7, oz_channel=4, seconds=20, fs=300, verbose=True):
+def get_baseline_alpha(streamer, EEGdevice, oz_channel, seconds=20, fs=300, verbose=True):
     '''Calculating alpha baseline with eyes open 
-
+    *note: since we do the same thing twice - consider condensing into one loop
     args:
         - streamer: DSI/Enobio Streamer object 
         - buffer_length: the number of data points used for hilbert power 
         - seconds: base 
     '''
+    
+    num_channels = EEGdevice
+    
     if EEGdevice == 7:
-        num_channels = 7
         # clear buffer
         streamer.clear_out_buffer()
-        # save the power
-        powers = []
-        # start collecting for eyes open
-        if verbose:
-            print('Keep your eyes open!')
-            print("Start calculating baseline...")
-        data = np.zeros((seconds//2 * fs, num_channels))  
-        for i in range(seconds//2 * fs):
+        
+    if verbose:
+        print('Keep your eyes open!')
+        print("Start calculating baseline...")
+        
+    # start collecting for eyes open
+    data = np.zeros((seconds//2 * fs, num_channels))  
+    for i in range(seconds//2 * fs): 
+        if EEGdevice == 7:
             data[i] = streamer.out_buffer_queue.get()[:-1]
-        # get Oz
-        print(np.shape(data))
-        Oz = data[:, oz_channel]
-        Oz_filter = filter_data(Oz, fs, 8, 12, verbose='ERROR')
-        power_open = (np.abs(scisig.hilbert(Oz_filter)) ** 2).mean()
-        if verbose:
-            print("Baseline calculation finished!")
-            print('Baseline (eyes open): ' + str(power_open))
+        elif EEGdevice == 8:
+            sample, timestamp = inlet.pull_sample()
+            data[i] = sample
+            
+    # get Oz
+    print(np.shape(data))
+    Oz = data[:, oz_channel]
+    Oz_filter = filter_data(Oz, fs, 8, 12, verbose='ERROR')
+    power_open = (np.abs(scisig.hilbert(Oz_filter)) ** 2).mean()
+    if verbose:
+        print("Baseline calculation finished!")
+        print('Baseline (eyes open): ' + str(power_open))
 
-        # start collecting for eyes closed
-        if verbose:
-            print('Keep your eyes closed!')
-            print("Start calculating baseline...")
-        data = np.zeros((seconds//2 * fs, num_channels))  
-        for i in range(seconds//2 * fs):
+    # start collecting for eyes closed
+    if verbose:
+        print('Keep your eyes closed!')
+        print("Start calculating baseline...")
+    data = np.zeros((seconds//2 * fs, num_channels))  
+    for i in range(seconds//2 * fs):  
+        if EEGdevice == 7:
             data[i] = streamer.out_buffer_queue.get()[:-1]
-        # get Oz
-        Oz = data[:, oz_channel]
-        Oz_filter = filter_data(Oz, fs, 8, 12, verbose='ERROR')
-        power_closed = (np.abs(scisig.hilbert(Oz_filter)) ** 2).mean()
-        if verbose:
-            print("Baseline calculation finished!")
-            print('Baseline (eyes closed): ' + str(power_closed))
-        return power_open, power_closed
-    elif EEGdevice == 8:
-        num_channels = 8
-        # TO DO, MAKE THIS WORK
-        print('Just temporarily setting threshold values now')
-        power_open = 10
-        power_closed = 100
-        return power_open, power_closed
+        elif EEGdevice == 8:
+            sample, timestamp = inlet.pull_sample()
+            data[i] = sample
     
-
+    # get Oz
+    Oz = data[:, oz_channel]
+    Oz_filter = filter_data(Oz, fs, 8, 12, verbose='ERROR')
+    power_closed = (np.abs(scisig.hilbert(Oz_filter)) ** 2).mean()
+    if verbose:
+        print("Baseline calculation finished!")
+        print('Baseline (eyes closed): ' + str(power_closed))
+    return power_open, power_closed
 
 if __name__ == "__main__":
     # Ask for subjectID
